@@ -1,0 +1,339 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador de Taylor y Maclaurin</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/13.2.0/math.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      color: #172554;
+    }
+    header {
+      background: #123c69;
+      color: white;
+      text-align: center;
+      padding: 25px 12px;
+    }
+    header h1 { margin: 0 0 8px; }
+    header p { margin: 0; color: #dbeafe; }
+    main {
+      max-width: 1100px;
+      margin: 25px auto;
+      padding: 0 15px;
+    }
+    .panel {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 3px 12px #0f172a12;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+      align-items: end;
+    }
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 11px;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 15px;
+    }
+    button {
+      border: none;
+      color: white;
+      background: #2563eb;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover { background: #1d4ed8; }
+    .formula {
+      background: #eff6ff;
+      border-left: 4px solid #2563eb;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-wrap: anywhere;
+      line-height: 1.8;
+      color: #1e3a8a;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .stat {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 9px;
+      padding: 15px;
+    }
+    .stat span {
+      display: block;
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .stat strong { font-size: 18px; overflow-wrap: anywhere; }
+    .chart { width: 100%; height: 420px; }
+    .note { color: #64748b; font-size: 13px; line-height: 1.5; }
+    footer { text-align: center; padding: 20px; color: #64748b; }
+    @media(max-width: 600px) {
+      .chart { height: 340px; }
+      .panel { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Simulador de Taylor y Maclaurin</h1>
+  <p>Visualización interactiva de polinomios y su error de aproximación</p>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Configuración</h2>
+    <div class="controls">
+      <div>
+        <label for="funcion">Función f(x)</label>
+        <select id="funcion">
+          <option value="exp(x)">eˣ</option>
+          <option value="sin(x)">sin(x)</option>
+          <option value="cos(x)">cos(x)</option>
+          <option value="log(x)">ln(x)</option>
+          <option value="sqrt(x)">√x</option>
+          <option value="1/(1+x)">1/(1+x)</option>
+          <option value="x^3+2*x^2-x+1">x³ + 2x² - x + 1</option>
+        </select>
+      </div>
+      <div>
+        <label for="grado">Grado del polinomio (n)</label>
+        <input type="number" id="grado" min="0" max="12" value="3">
+      </div>
+      <div>
+        <label for="centro">Centro de expansión (a)</label>
+        <input type="number" id="centro" value="0" step="0.5">
+      </div>
+      <div>
+        <label for="xmin">X mínimo</label>
+        <input type="number" id="xmin" value="-4" step="1">
+      </div>
+      <div>
+        <label for="xmax">X máximo</label>
+        <input type="number" id="xmax" value="4" step="1">
+      </div>
+      <div>
+        <button id="actualizar">Actualizar simulación</button>
+      </div>
+    </div>
+    <p class="note">También puedes usar los controles de la gráfica para desplazarte y hacer zoom. La función debe ser derivable en el centro seleccionado.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Polinomio de Taylor</h2>
+    <div class="formula" id="polinomio">Calculando...</div>
+    <p id="tipo" class="note"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Gráfica de la función y su aproximación</h2>
+    <div id="grafica" class="chart"></div>
+    <p class="note">Azul: función original. Rojo: polinomio de Taylor. Puedes usar la barra de herramientas para explorar la gráfica.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Error de aproximación</h2>
+    <div class="stats">
+      <div class="stat">
+        <span>Error absoluto en x seleccionado</span>
+        <strong id="error">—</strong>
+      </div>
+      <div class="stat">
+        <span>Valor de x</span>
+        <strong id="xvalor">0</strong>
+      </div>
+      <div class="stat">
+        <span>Valor de f(x)</span>
+        <strong id="fvalor">—</strong>
+      </div>
+      <div class="stat">
+        <span>Valor de Pₙ(x)</span>
+        <strong id="pvalor">—</strong>
+      </div>
+    </div>
+    <div style="margin-top:18px">
+      <label for="xconsulta">Mover el punto de evaluación (x)</label>
+      <input type="range" id="xconsulta" min="-4" max="4" step="0.01" value="1">
+    </div>
+    <div id="errorGrafica" class="chart"></div>
+    <p class="note">El error mostrado es E(x) = |f(x) − Pₙ(x)|. La gráfica inferior muestra cómo varía el error absoluto en el intervalo elegido.</p>
+  </section>
+</main>
+<footer>Simulador educativo de cálculo diferencial</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let funcion, polinomio, a, n, rangoMin, rangoMax;
+
+function evaluar(expr, x) {
+  try {
+    const y = expr.evaluate({x});
+    return typeof y === "number" && Number.isFinite(y) ? y : NaN;
+  } catch {
+    return NaN;
+  }
+}
+
+function formato(v) {
+  if (!Number.isFinite(v)) return "No definido";
+  return Number(v.toPrecision(7)).toString();
+}
+
+function construirTaylor(expr, centro, grado) {
+  let derivada = math.parse(expr);
+  let factorial = 1;
+  let coeficientes = [];
+  let terminos = [];
+
+  for (let k = 0; k <= grado; k++) {
+    if (k > 0) {
+      derivada = math.derivative(derivada, "x");
+      factorial *= k;
+    }
+    const coef = evaluar(derivada.compile(), centro) / factorial;
+    if (!Number.isFinite(coef)) {
+      throw new Error("No se pudo calcular una derivada válida en el centro.");
+    }
+    coeficientes.push(coef);
+
+    if (Math.abs(coef) > 1e-12) {
+      const potencia = k === 0 ? "" :
+        k === 1 ? "(x - a)" : `(x - a)^${k}`;
+      terminos.push({
+        coef,
+        k,
+        texto: `${coef < 0 ? " − " : (terminos.length ? " + " : "")}${Math.abs(coef).toPrecision(6)}${k === 0 ? "" : `·(x ${centro < 0 ? "+ " + Math.abs(centro) : "- " + centro})${k > 1 ? "^" + k : ""}`}`
+      });
+    }
+  }
+
+  return {
+    coeficientes,
+    texto: terminos.length
+      ? terminos.map(t => t.texto).join("").replace(/^ \+ /, "")
+      : "0",
+    evaluar(x) {
+      let suma = 0;
+      for (let k = coeficientes.length - 1; k >= 0; k--) {
+        suma = suma * (x - centro) + coeficientes[k];
+      }
+      return suma;
+    }
+  };
+}
+
+function actualizar() {
+  try {
+    funcion = $("funcion").value;
+    n = Number($("grado").value);
+    a = Number($("centro").value);
+    rangoMin = Number($("xmin").value);
+    rangoMax = Number($("xmax").value);
+
+    if (!Number.isInteger(n) || n < 0 || n > 12)
+      throw new Error("El grado debe estar entre 0 y 12.");
+    if (!(rangoMin < rangoMax))
+      throw new Error("El valor mínimo debe ser menor que el máximo.");
+
+    const expr = math.parse(funcion);
+    const f = expr.compile();
+    polinomio = construirTaylor(expr, a, n);
+
+    $("polinomio").textContent = "P" + n + "(x) = " + polinomio.texto;
+    $("tipo").textContent = Math.abs(a) < 1e-12
+      ? "Caso Maclaurin (centro a = 0)"
+      : `Caso Taylor (centro a = ${a})`;
+
+    const xs = [];
+    const ys = [];
+    const ps = [];
+    const errores = [];
+    const cantidad = 500;
+    for (let i = 0; i <= cantidad; i++) {
+      const x = rangoMin + (rangoMax - rangoMin) * i / cantidad;
+      const y = evaluar(f, x);
+      const p = polinomio.evaluar(x);
+      xs.push(x);
+      ys.push(y);
+      ps.push(p);
+      errores.push(Number.isFinite(y) && Number.isFinite(p)
+        ? Math.abs(y - p) : NaN);
+    }
+
+    Plotly.react("grafica", [
+      {x: xs, y: ys, name: "f(x)", mode: "lines",
+       line: {color: "#2563eb", width: 3}},
+      {x: xs, y: ps, name: "Taylor P" + n + "(x)", mode: "lines",
+       line: {color: "#dc2626", width: 2, dash: "dash"}}
+    ], {
+      margin: {t: 20, r: 20, b: 55, l: 55},
+      xaxis: {title: "x", zeroline: true},
+      yaxis: {title: "y", zeroline: true},
+      legend: {orientation: "h", y: 1.12},
+      hovermode: "x unified"
+    }, {responsive: true, scrollZoom: true});
+
+    Plotly.react("errorGrafica", [{
+      x: xs, y: errores, name: "Error absoluto",
+      mode: "lines", line: {color: "#16a34a", width: 2}
+    }], {
+      margin: {t: 20, r: 20, b: 55, l: 60},
+      xaxis: {title: "x"},
+      yaxis: {title: "|f(x) − Pₙ(x)|", rangemode: "tozero"},
+      showlegend: false
+    }, {responsive: true, scrollZoom: true});
+
+    $("xconsulta").min = rangoMin;
+    $("xconsulta").max = rangoMax;
+    $("xconsulta").step = (rangoMax - rangoMin) / 500;
+    $("xconsulta").value = Math.max(rangoMin, Math.min(rangoMax, a));
+    consultar();
+
+  } catch (e) {
+    $("polinomio").textContent = "Error: " + e.message;
+  }
+}
+
+function consultar() {
+  if (!polinomio) return;
+  const x = Number($("xconsulta").value);
+  const y = evaluar(math.parse(funcion).compile(), x);
+  const p = polinomio.evaluar(x);
+  $("xvalor").textContent = formato(x);
+  $("fvalor").textContent = formato(y);
+  $("pvalor").textContent = formato(p);
+  $("error").textContent = Number.isFinite(y) && Number.isFinite(p)
+    ? formato(Math.abs(y - p)) : "No definido";
+}
+
+$("actualizar").addEventListener("click", actualizar);
+$("xconsulta").addEventListener("input", consultar);
+$("funcion").addEventListener("change", actualizar);
+actualizar();
+</script>
+</body>
+</html>
